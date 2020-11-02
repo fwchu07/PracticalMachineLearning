@@ -1,0 +1,119 @@
+---
+title: "Practical Machine Learning: Course Project"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Introduction
+This project uses the Weight Lifting Exercises Dataset generously provided by: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har. The goal of this research was to determine "how well" an activity was performed by participants wearing fitness devices.  For this study, participants were asked to perform barbell lifts correctly and incorrectly in 5 different ways.  
+
+From the study description: Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+
+This project predicts the "classe" variable, which is the manner in which the exercise was completed. The prediction model was then used to predict 20 different test cases. 
+
+#Load data
+```{r, cache = TRUE}
+training <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+testing <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+```
+
+#Load libraries
+```{r,echo=FALSE}
+library(caret)
+
+```
+
+#Examine and preprocess data
+```{r}
+dim(training)
+dim(testing)
+
+table(training$classe)
+```
+
+```{r, include=FALSE}
+str(training)
+```
+After examining the variables, some variables to exclude would be first 7 columns: "X","user_name","raw_timestamp_part_1","raw_timestamp_part_2","cvtd_timestamp","new_window","num_window."
+
+We should also convert the remaining variables, except for "classe" to be numeric.  For some variables, the majority of values are NA, and these variables should be removed.
+
+```{r,warning=FALSE}
+#160 columns in training
+train <- training[,8:160]
+#convert to as.numeric for remaining columns except for classe variable
+train[,1:152] <- lapply(train[,1:152],as.numeric)
+train$classe <-as.factor(train$classe)
+#160 columns in training, 159 is problem_id
+test <- sapply(testing[,8:159],as.numeric)
+
+#function to check proportion of NAs, keep variables where more than half of values are not NA
+checkNA = function(dataset) {
+as.vector(apply(dataset, 2, function(dataset) length(which(!is.na(dataset)))/length(dataset)))
+}  
+
+p_notNA_train <- checkNA(train)
+train_df <- train[,subset(p_notNA_train>.5,TRUE)]
+
+p_notNA_test <-checkNA(test)
+test_df <-test[,subset(p_notNA_test>.5,TRUE)]
+  
+```
+
+#Building the Model
+First we create test and train datasets from the training set
+```{r}
+#Set seed for reproducibility
+set.seed(123)
+inTrain = createDataPartition(train_df$classe, p = .6)[[1]]
+
+train_classe = train_df[inTrain,]
+test_classe <- train_df[-inTrain,]
+
+```
+
+##Decision Tree Model
+```{r,cache=TRUE}
+m_dt <- train(classe~., method="rpart",data=train_classe)
+pred_dttrain <- predict(m_dt,train_classe)
+confusionMatrix(pred_dttrain,train_classe$classe)
+```
+Accuracy was not very high using this model on the training set.  We can try using a different model for higher accuracy.
+
+##Random Forest Model
+The random forest model involves constructing multiple decision trees during training.  It is more accurate than the decision tree model, but can take a long time. 
+```{r, cache=TRUE}
+m_rf <- train(classe ~., method = "rf", data=train_classe)
+pred_rftrain <- predict(m_rf,train_classe)
+#table(pred_training,train_classe$classe)
+confusionMatrix(pred_rftrain,train_classe$classe)
+```
+The random forest model had very high accuracy and was able to predict classe correctly for each observation.  
+
+#Cross Validation and Accuracy
+For cross-validation, we generate predictions by using the testing set we previously reserved.
+
+##Decision Tree
+```{r, cache=TRUE}
+pred_dttest <- predict(m_dt,test_classe)
+confusionMatrix(pred_dttest,test_classe$classe)
+
+```
+The decision tree model has .51 accuracy.  Similar to the performance on the training set, accuracy was not high and suggests high error rate.  
+
+##Random Forest
+```{r,cache=TRUE}
+pred_rftest <- predict(m_rf,test_classe)
+confusionMatrix(pred_rftest,test_classe$classe)
+
+```
+The random forest model has .99 accuracy.  This is very high, so the random forest model will be used to generate predictions for the test cases.
+
+#Using Prediction Model
+```{r}
+rfpred <- predict(m_rf,newdata = test)
+rfpred
+```
