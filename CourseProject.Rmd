@@ -21,7 +21,7 @@ testing <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-tes
 ```
 
 #Load libraries
-```{r,echo=FALSE}
+```{r,warning=FALSE}
 library(caret)
 
 ```
